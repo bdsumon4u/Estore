@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\Shop;
 
 use App\Filament\Resources\Shop\CategoryResource\Pages;
+use App\Filament\Resources\Shop\CategoryResource\RelationManagers;
+use App\Filament\Resources\Support\Related;
 use App\Filament\Resources\Support\Traits\BelongsToOwner;
 use App\Models\Shop\Category;
 use Filament\Facades\Filament;
@@ -30,6 +32,8 @@ class CategoryResource extends Resource
     protected static ?string $navigationGroup = 'Shop';
 
     protected static ?string $navigationIcon = 'heroicon-o-tag';
+
+    protected static ?string $navigationParentItem = 'Products';
 
     protected static ?int $navigationSort = 2;
 
@@ -158,7 +162,9 @@ class CategoryResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            ...Related::belongsToMany(static::getModel(), [
+                RelationManagers\ProductsRelationManager::class,
+            ]),
         ];
     }
 
