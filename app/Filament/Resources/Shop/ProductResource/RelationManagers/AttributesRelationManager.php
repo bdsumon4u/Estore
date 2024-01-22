@@ -19,12 +19,18 @@ class AttributesRelationManager extends RelationManager
 {
     protected static string $relationship = 'attributes';
 
+    protected function options(): Collection
+    {
+        return $this->getOwnerRecord()->attributes()->get([])
+            ->map(fn ($item) => $item->pivot->option_id)->filter();
+    }
+
     protected function attributes(): Collection
     {
-        $existing = $this->getOwnerRecord()->attributes()->get([])->map->pivot->map->option_id->filter();
-
-        return Attribute::with(['options' /* => fn ($query) => $query->whereNotIn('id', $existing) */])
-            ->where('owner_id', Filament::getTenant()->owner_id)->get();
+        return Attribute::with(['options' => fn ($query) => $query->whereNotIn('id', $this->options())])
+            ->where('owner_id', Filament::getTenant()->owner_id)->get()->filter(function ($attribute) {
+                return $attribute->hasTextOption() || $attribute->options->count();
+            });
     }
 
     public function form(Form $form): Form
@@ -36,7 +42,7 @@ class AttributesRelationManager extends RelationManager
                 Forms\Components\Select::make('attribute_id')
                     ->label('')
                     ->placeholder('Select an attribute...')
-                    ->options($attributes->pluck('name', 'id')->toArray())
+                    ->options($attributes->pluck('name', 'id'))
                     ->live()
                     ->searchable()
                     ->afterStateUpdated(fn (Forms\Components\Select $component) => $component
@@ -64,7 +70,6 @@ class AttributesRelationManager extends RelationManager
                         return [
                             Forms\Components\TextInput::make('value')
                                 ->placeholder('Enter a value...')
-                                ->formatStateUsing(fn (Model $record) => dd($record, $form->getRecord()))
                                 ->label('')
                                 ->numeric($attribute->type === 'number'),
                         ];
@@ -73,15 +78,7 @@ class AttributesRelationManager extends RelationManager
                     if ($attribute->hasMultipleOptions()) {
                         return [
                             Forms\Components\CheckboxList::make('value')
-                                ->options($attribute->options->pluck('value', 'id')->toArray())
-                                ->formatStateUsing(fn () => $form
-                                    ->getRecord()
-                                    ->variations()
-                                    ->wherePivot('product_id', $this->getOwnerRecord()->id)
-                                    ->get(['option_id'])
-                                    ->pluck('option_id')
-                                    ->toArray()
-                                )
+                                ->options($attribute->options->pluck('value', 'id'))
                                 ->label('')
                                 ->searchable()
                                 ->searchPrompt('Search for an option...')
@@ -99,9 +96,7 @@ class AttributesRelationManager extends RelationManager
         $attributes = $this->attributes();
 
         return $table
-            ->modifyQueryUsing(function (Builder $query) {
-                // $query->with('variations');
-            })
+            ->allowDuplicates(false)
             ->recordTitleAttribute('name')
             ->columns([
                 Tables\Columns\TextColumn::make('name'),
@@ -112,24 +107,6 @@ class AttributesRelationManager extends RelationManager
                 //
             ])
             ->headerActions([
-                /*
-                Tables\Actions\CreateAction::make()
-                    ->using(function (array $data, string $model) use ($attributes) {
-                        $value = is_array($data['value']) ? $data['value'] : [$data['value']];
-
-                        if (! $attribute = $attributes->firstWhere('id', $data['attribute_id'])) {
-                            return null;
-                        }
-
-                        foreach ($value as $option_id) {
-                            $this->getOwnerRecord()->attributes()->syncWithoutDetaching($data['attribute_id'], [
-                                $attribute->hasTextOption() ? 'value' : 'option_id' => $option_id,
-                            ]);
-                        }
-
-                        return $this->getOwnerRecord()->attributes()->firstWhere('attribute_id', $data['attribute_id']);
-                    }),
-                    */
                 Tables\Actions\Action::make('Attach')
                     ->form(fn (Form $form) => $this->form($form))
                     ->modalHeading(fn () => 'Attach attribute')
@@ -152,13 +129,12 @@ class AttributesRelationManager extends RelationManager
                     ->successNotificationTitle('Attached'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DetachAction::make(),
+                //
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
+                // Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DetachBulkAction::make(),
-                ]),
+                // ]),
             ]);
     }
 }
