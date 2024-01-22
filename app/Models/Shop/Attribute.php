@@ -5,6 +5,7 @@ namespace App\Models\Shop;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Attribute extends Model
@@ -19,11 +20,8 @@ class Attribute extends Model
     public static function typesFields(): array
     {
         return [
-            'text' => 'Text field',
-            'richtext' => 'Rich text',
+            'text' => 'Text',
             'number' => 'Number',
-            'select' => 'Select',
-            'radio' => 'Radio',
             'checkbox' => 'Checkbox',
             'colorpicker' => 'Color picker',
             'datepicker' => 'Date picker',
@@ -32,27 +30,17 @@ class Attribute extends Model
 
     public static function fieldsWithOptions(): array
     {
-        return [
-            'select',
-            'checkbox',
-            'colorpicker',
-            'radio',
-        ];
+        return ['checkbox', 'colorpicker'];
     }
 
     public function hasMultipleOptions(): bool
     {
-        return in_array($this->type, ['checkbox', 'colorpicker']);
+        return in_array($this->type, static::fieldsWithOptions());
     }
 
     public function hasTextOption(): bool
     {
-        return in_array($this->type, ['text', 'number', 'richtext', 'datepicker']);
-    }
-
-    public function hasSingleOption(): bool
-    {
-        return in_array($this->type, ['radio', 'select']);
+        return ! $this->hasMultipleOptions();
     }
 
     public function scopeEnabled(Builder $query): Builder
@@ -73,5 +61,12 @@ class Attribute extends Model
     public function options(): HasMany
     {
         return $this->hasMany(Option::class);
+    }
+
+    public function variations(): BelongsToMany
+    {
+        return $this->belongsToMany(Option::class, 'variations')
+            ->using(Variation::class)
+            ->withPivot(['option_id', 'value']);
     }
 }

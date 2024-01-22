@@ -52,7 +52,7 @@ class AttributeResource extends Resource
                                     'searchable' => 'You can use this attribute to search and filter product.',
                                     'filterable' => 'You can use this attribute as a filter on your front store.',
                                 ])
-                                ->formatStateUsing(function (string $operation) use (&$form) {
+                                ->formatStateUsing(function (string $operation) use ($form) {
                                     $state = [];
 
                                     foreach (['searchable', 'filterable'] as $is) {
@@ -73,7 +73,7 @@ class AttributeResource extends Resource
                     Forms\Components\Section::make()
                         ->schema([
                             Forms\Components\Select::make('type')
-                            ->options(Attribute::typesFields())
+                                ->options(Attribute::typesFields())
                                 ->required()
                                 ->native(false),
                             Forms\Components\Toggle::make('is_enabled')
@@ -90,21 +90,21 @@ class AttributeResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
-                ->sortable(),
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('type')
-                ->formatStateUsing(function (Attribute $record) {
-                    return $record->getTypeFormattedAttribute();
-                })
+                    ->formatStateUsing(function (Attribute $record) {
+                        return $record->getTypeFormattedAttribute();
+                    })
                     ->sortable(),
                 Tables\Columns\ToggleColumn::make('is_enabled')
-                ->label('Enabled')
-                ->sortable(),
+                    ->label('Enabled')
+                    ->sortable(),
                 Tables\Columns\ToggleColumn::make('is_searchable')
-                ->label('Searchable')
-                ->sortable(),
+                    ->label('Searchable')
+                    ->sortable(),
                 Tables\Columns\ToggleColumn::make('is_filterable')
-                ->label('Filterable')
-                ->sortable(),
+                    ->label('Filterable')
+                    ->sortable(),
             ])
             ->filters([
                 //
