@@ -63,10 +63,8 @@ class Attribute extends Model
         return $this->hasMany(Option::class);
     }
 
-    public function variations(): BelongsToMany
-    {
-        return $this->belongsToMany(Option::class, 'variations')
-            ->using(Variation::class)
-            ->withPivot(['option_id', 'value']);
-    }
+    // public function variations(): BelongsToMany
+    // {
+    //     return $this->belongsToMany(Variation::class, 'variations');
+    // }
 }

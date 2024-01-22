@@ -41,9 +41,8 @@ class AttributesRelationManager extends RelationManager
                         ->getComponent('dynamicFields')
                         ->getChildComponentContainer()
                         ->fill()
-                    )
-                    ->disabledOn('edit'),
-                    
+                    ),
+
                 Forms\Components\Group::make(function (Forms\Get $get) use ($attributes): array {
                     if (! $attribute = $attributes->firstWhere('id', $get('attribute_id'))) {
                         return [];
@@ -70,9 +69,7 @@ class AttributesRelationManager extends RelationManager
                     if ($attribute->hasMultipleOptions()) {
                         return [
                             Forms\Components\CheckboxList::make('value')
-                                ->relationship('variations', 'key', function ($query) use ($attribute) {
-                                    $query->where('options.attribute_id', $attribute->id);
-                                })
+                                ->options($attribute->options->pluck('value', 'id')->toArray())
                                 ->label('')
                                 ->searchable()
                                 ->searchPrompt('Search for an option...')
@@ -91,21 +88,13 @@ class AttributesRelationManager extends RelationManager
 
         return $table
             ->modifyQueryUsing(function (Builder $query) {
-                $query->with('options');
+                $query->with('option');
             })
             ->recordTitleAttribute('name')
             ->columns([
-                Tables\Columns\TextColumn::make('name'),
-                Tables\Columns\TextColumn::make('option_id')
-                    ->label('Option')
-                    ->formatStateUsing(function (Model $record) {
-                        if ($record->pivot->value) {
-                            return $record->pivot->value;
-                        }
-                        
-                        return '';
-                    }),
-                Tables\Columns\TextColumn::make('value'),
+                Tables\Columns\TextColumn::make('attribute.name'),
+                Tables\Columns\TextColumn::make('effective_value')
+                    ->label('Option'),
             ])
             ->filters([
                 //
@@ -129,34 +118,31 @@ class AttributesRelationManager extends RelationManager
                         return $this->getOwnerRecord()->attributes()->firstWhere('attribute_id', $data['attribute_id']);
                     }),
                     */
-                Tables\Actions\AttachAction::make()
-                    ->form(fn (Form $form) => $this->form($form)),
+                Tables\Actions\CreateAction::make()
+                    ->form(fn (Form $form) => $this->form($form))
+                    ->using(function (array $data, Model $record) use ($attributes) {
+                        dd($record, $data);
+                        // $value = is_array($data['value']) ? $data['value'] : [$data['value']];
+
+                        // if (!$attribute = $attributes->firstWhere('id', $data['attribute_id'])) {
+                        //     return null;
+                        // }
+
+                        // foreach ($value as $option_id) {
+                        //     $this->getOwnerRecord()->attributes()->syncWithoutDetaching($data['attribute_id'], [
+                        //         $attribute->hasTextOption() ? 'value' : 'option_id' => $option_id,
+                        //     ]);
+                        // }
+
+                        // return $this->getOwnerRecord()->attributes()->firstWhere('attribute_id', $data['attribute_id']);
+                    }),
             ])
             ->actions([
-                Tables\Actions\EditAction::make()
-                    ->using(function (array $data, Model $record) {
-                        $value = is_array($data['value']) ? $data['value'] : [$data['value']];
-
-                        collect($value)
-                            ->mapWithKeys(fn ($option_id) => [
-                                $data['attribute_id'] => [
-                                    'option_id' => $option_id,
-                                ],
-                            ])->dd();
-
-                        $this->getOwnerRecord()->attributes()->attach();
-                        dd(array_map(fn ($id) => [
-                            'attribute_id' => $data['attribute_id'],
-                            'option_id' => $id,
-                        ], $value));
-                        dd('d');
-                    }),
                 Tables\Actions\DetachAction::make(),
-                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DetachBulkAction::make(),
                 ]),
             ]);
     }

@@ -3,14 +3,15 @@
 namespace App\Models\Shop;
 
 use Illuminate\Database\Eloquent\Casts\Attribute as AttributeCast;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
-class Variation extends Pivot
+class Variation extends Model
 {
     public $timestamps = false;
 
-    protected function value(): AttributeCast
+    protected function effectiveValue(): AttributeCast
     {
         return AttributeCast::make(
             get: fn () => $this->value ?? $this->option?->value,
