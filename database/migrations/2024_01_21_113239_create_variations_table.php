@@ -18,10 +18,10 @@ return new class extends Migration
             $table->foreignIdFor(Attribute::class);
             $table->foreignIdFor(Option::class)->nullable();
             $table->foreignIdFor(Product::class);
-            $table->string('value')->nullable();
+            $table->string('option_value')->nullable();
 
             $table->unique(['attribute_id', 'option_id', 'product_id']);
-            $table->unique(['attribute_id', 'product_id', 'value']);
+            $table->unique(['attribute_id', 'product_id', 'option_value']);
         });
     }
 

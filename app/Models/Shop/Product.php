@@ -14,8 +14,10 @@ class Product extends Model implements HasMedia
     use HasFactory;
     use InteractsWithMedia;
 
-    public function attributes(): HasMany
+    public function attributes(): BelongsToMany
     {
-        return $this->hasMany(Variation::class);
+        return $this->belongsToMany(Attribute::class, 'variations')
+            ->using(Variation::class)
+            ->withPivot(['id', 'option_id', 'option_value']);
     }
 }

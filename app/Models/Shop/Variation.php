@@ -7,14 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
-class Variation extends Model
+class Variation extends Pivot
 {
     public $timestamps = false;
 
-    protected function effectiveValue(): AttributeCast
+    protected function value(): AttributeCast
     {
         return AttributeCast::make(
-            get: fn () => $this->value ?? $this->option?->value,
+            get: fn () => $this->option_value ?? $this->option?->value,
         );
     }
 

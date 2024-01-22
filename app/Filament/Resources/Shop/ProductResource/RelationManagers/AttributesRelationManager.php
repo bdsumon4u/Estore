@@ -21,7 +21,10 @@ class AttributesRelationManager extends RelationManager
 
     protected function attributes(): Collection
     {
-        return Attribute::with('options')->where('owner_id', Filament::getTenant()->owner_id)->get();
+        $existing = $this->getOwnerRecord()->attributes()->get([])->map->pivot->map->option_id->filter();
+
+        return Attribute::with(['options' /* => fn ($query) => $query->whereNotIn('id', $existing) */])
+            ->where('owner_id', Filament::getTenant()->owner_id)->get();
     }
 
     public function form(Form $form): Form
@@ -43,7 +46,7 @@ class AttributesRelationManager extends RelationManager
                         ->fill()
                     ),
 
-                Forms\Components\Group::make(function (Forms\Get $get) use ($attributes): array {
+                Forms\Components\Group::make(function (Forms\Get $get) use ($attributes, $form): array {
                     if (! $attribute = $attributes->firstWhere('id', $get('attribute_id'))) {
                         return [];
                     }
@@ -61,6 +64,7 @@ class AttributesRelationManager extends RelationManager
                         return [
                             Forms\Components\TextInput::make('value')
                                 ->placeholder('Enter a value...')
+                                ->formatStateUsing(fn (Model $record) => dd($record, $form->getRecord()))
                                 ->label('')
                                 ->numeric($attribute->type === 'number'),
                         ];
@@ -70,6 +74,14 @@ class AttributesRelationManager extends RelationManager
                         return [
                             Forms\Components\CheckboxList::make('value')
                                 ->options($attribute->options->pluck('value', 'id')->toArray())
+                                ->formatStateUsing(fn () => $form
+                                    ->getRecord()
+                                    ->variations()
+                                    ->wherePivot('product_id', $this->getOwnerRecord()->id)
+                                    ->get(['option_id'])
+                                    ->pluck('option_id')
+                                    ->toArray()
+                                )
                                 ->label('')
                                 ->searchable()
                                 ->searchPrompt('Search for an option...')
@@ -88,12 +100,12 @@ class AttributesRelationManager extends RelationManager
 
         return $table
             ->modifyQueryUsing(function (Builder $query) {
-                $query->with('option');
+                // $query->with('variations');
             })
             ->recordTitleAttribute('name')
             ->columns([
-                Tables\Columns\TextColumn::make('attribute.name'),
-                Tables\Columns\TextColumn::make('effective_value')
+                Tables\Columns\TextColumn::make('name'),
+                Tables\Columns\TextColumn::make('pivot.value')
                     ->label('Option'),
             ])
             ->filters([
@@ -118,26 +130,29 @@ class AttributesRelationManager extends RelationManager
                         return $this->getOwnerRecord()->attributes()->firstWhere('attribute_id', $data['attribute_id']);
                     }),
                     */
-                Tables\Actions\CreateAction::make()
+                Tables\Actions\Action::make('Attach')
                     ->form(fn (Form $form) => $this->form($form))
-                    ->using(function (array $data, Model $record) use ($attributes) {
-                        dd($record, $data);
-                        // $value = is_array($data['value']) ? $data['value'] : [$data['value']];
+                    ->modalHeading(fn () => 'Attach attribute')
+                    ->modalWidth('xl')
+                    ->action(function (Tables\Actions\Action $action, array $data) use ($attributes) {
+                        $value = is_array($data['value']) ? $data['value'] : [$data['value']];
 
-                        // if (!$attribute = $attributes->firstWhere('id', $data['attribute_id'])) {
-                        //     return null;
-                        // }
+                        if (!$attribute = $attributes->firstWhere('id', $data['attribute_id'])) {
+                            return null;
+                        }
 
-                        // foreach ($value as $option_id) {
-                        //     $this->getOwnerRecord()->attributes()->syncWithoutDetaching($data['attribute_id'], [
-                        //         $attribute->hasTextOption() ? 'value' : 'option_id' => $option_id,
-                        //     ]);
-                        // }
+                        foreach ($value as $option) {
+                            $this->getOwnerRecord()->attributes()->attach($data['attribute_id'], [
+                                ($attribute->hasTextOption() ? 'option_value' : 'option_id') => $option,
+                            ]);
+                        }
 
-                        // return $this->getOwnerRecord()->attributes()->firstWhere('attribute_id', $data['attribute_id']);
-                    }),
+                        $action->success();
+                    })
+                    ->successNotificationTitle('Attached'),
             ])
             ->actions([
+                Tables\Actions\EditAction::make(),
                 Tables\Actions\DetachAction::make(),
             ])
             ->bulkActions([
