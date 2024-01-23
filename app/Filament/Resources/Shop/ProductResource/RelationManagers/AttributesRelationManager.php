@@ -2,8 +2,7 @@
 
 namespace App\Filament\Resources\Shop\ProductResource\RelationManagers;
 
-use App\Models\Shop\Attribute;
-use Filament\Facades\Filament;
+use App\Filament\Resources\Shop\AttributeResource;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -13,24 +12,14 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Collection;
-use Illuminate\Support\HtmlString;
 
 class AttributesRelationManager extends RelationManager
 {
     protected static string $relationship = 'attributes';
 
-    protected function options(): Collection
-    {
-        return $this->getOwnerRecord()->attributes()->get([])
-            ->map(fn ($item) => $item->pivot->option_id)->filter();
-    }
-
     protected function attributes(): Collection
     {
-        return Attribute::with(['options' => fn ($query) => $query->whereNotIn('id', $this->options())])
-            ->where('owner_id', Filament::getTenant()->owner_id)->get()->filter(function ($attribute) {
-                return $attribute->hasTextOption() || $attribute->options->count();
-            });
+        return AttributeResource::getEloquentQuery()->with('options')->get();
     }
 
     public function form(Form $form): Form
@@ -50,7 +39,8 @@ class AttributesRelationManager extends RelationManager
                         ->getComponent('dynamicFields')
                         ->getChildComponentContainer()
                         ->fill()
-                    ),
+                    )
+                    ->disabledOn('edit'),
 
                 Forms\Components\Group::make(function (Forms\Get $get) use ($attributes, $form): array {
                     if (! $attribute = $attributes->firstWhere('id', $get('attribute_id'))) {
@@ -60,7 +50,7 @@ class AttributesRelationManager extends RelationManager
                     if ($attribute->hasTextOption()) {
                         if ($attribute->type === 'datepicker') {
                             return [
-                                Forms\Components\DatePicker::make('value')
+                                Forms\Components\DatePicker::make('option_value')
                                     ->placeholder('Select a date...')
                                     ->label('')
                                     ->native(false),
@@ -68,7 +58,7 @@ class AttributesRelationManager extends RelationManager
                         }
 
                         return [
-                            Forms\Components\TextInput::make('value')
+                            Forms\Components\TextInput::make('option_value')
                                 ->placeholder('Enter a value...')
                                 ->label('')
                                 ->numeric($attribute->type === 'number'),
@@ -79,6 +69,9 @@ class AttributesRelationManager extends RelationManager
                         return [
                             Forms\Components\CheckboxList::make('value')
                                 ->options($attribute->options->pluck('value', 'id'))
+                                ->formatStateUsing(function () use ($attribute) {
+                                    return $attribute->variations()->where('product_id', $this->getOwnerRecord()->id)->get([])->map->pivot->pluck('option_id')->toArray();
+                                })
                                 ->label('')
                                 ->searchable()
                                 ->searchPrompt('Search for an option...')
@@ -96,45 +89,56 @@ class AttributesRelationManager extends RelationManager
         $attributes = $this->attributes();
 
         return $table
-            ->allowDuplicates(false)
+            ->modifyQueryUsing(function ($query) {
+                $query->with(['attribute', 'option']);
+            })
             ->recordTitleAttribute('name')
             ->columns([
-                Tables\Columns\TextColumn::make('name'),
-                Tables\Columns\TextColumn::make('pivot.value')
+                Tables\Columns\TextColumn::make('attribute.name'),
+                Tables\Columns\TextColumn::make('value')
                     ->label('Option'),
             ])
             ->filters([
                 //
             ])
             ->headerActions([
-                Tables\Actions\Action::make('Attach')
+                Tables\Actions\AttachAction::make()
                     ->form(fn (Form $form) => $this->form($form))
-                    ->modalHeading(fn () => 'Attach attribute')
-                    ->modalWidth('xl')
                     ->action(function (Tables\Actions\Action $action, array $data) use ($attributes) {
-                        $value = is_array($data['value']) ? $data['value'] : [$data['value']];
-
                         if (!$attribute = $attributes->firstWhere('id', $data['attribute_id'])) {
                             return null;
                         }
 
-                        foreach ($value as $option) {
-                            $this->getOwnerRecord()->attributes()->attach($data['attribute_id'], [
-                                ($attribute->hasTextOption() ? 'option_value' : 'option_id') => $option,
-                            ]);
+                        if ($attribute->hasTextOption()) {
+                            $this->getOwnerRecord()->attributes()->create($data);
+
+                            return $action->success();
                         }
 
-                        $action->success();
-                    })
-                    ->successNotificationTitle('Attached'),
+                        $data = collect($data['value'])->mapWithKeys(fn ($option) => [$option => ['product_id' => $this->getOwnerRecord()->id]])->toArray();
+
+                        $attribute->variations()->wherePivot('product_id', $this->getOwnerRecord()->id)->sync($data);
+
+                        return $action->success();
+                    }),
             ])
             ->actions([
-                //
+                Tables\Actions\EditAction::make()
+                    ->using(function (Tables\Actions\EditAction $action, Model $record, array $data) {
+                        if ($record->attribute->hasTextOption()) {
+                            return $record->update($data);
+                        }
+
+                        $data = collect($data['value'])->mapWithKeys(fn ($option) => [$option => ['product_id' => $record->product_id]])->toArray();
+
+                        $record->attribute->variations()->wherePivot('product_id', $this->getOwnerRecord()->id)->sync($data);
+                    }),
+                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
-                // Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DetachBulkAction::make(),
-                // ]),
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ]);
     }
 }

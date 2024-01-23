@@ -14,10 +14,15 @@ class Product extends Model implements HasMedia
     use HasFactory;
     use InteractsWithMedia;
 
-    public function attributes(): BelongsToMany
+    // public function attributes(): BelongsToMany
+    // {
+    //     return $this->belongsToMany(Attribute::class, 'variations')
+    //         ->using(Variation::class)
+    //         ->withPivot(['id', 'option_id', 'option_value']);
+    // }
+
+    public function attributes(): HasMany
     {
-        return $this->belongsToMany(Attribute::class, 'variations')
-            ->using(Variation::class)
-            ->withPivot(['id', 'option_id', 'option_value']);
+        return $this->hasMany(Variation::class);
     }
 }
